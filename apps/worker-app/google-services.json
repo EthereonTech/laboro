@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1066039508483",
+    "project_id": "laboro-a6d2a",
+    "storage_bucket": "laboro-a6d2a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1066039508483:android:39ff50113f8636dd631836",
+        "android_client_info": {
+          "package_name": "br.com.ethereontech.laboro.worker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDb30wBI21RncAzBvNO8u7ms790CU8JmHI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -16,12 +16,17 @@ export interface ExpoPushReceipt {
 }
 
 export async function sendExpoPush(messages: ExpoPushMessage[]): Promise<ExpoPushReceipt[]> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  }
+  if (process.env.EXPO_ACCESS_TOKEN) {
+    headers['Authorization'] = `Bearer ${process.env.EXPO_ACCESS_TOKEN}`
+  }
+
   const res = await fetch(EXPO_PUSH_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
+    headers,
     body: JSON.stringify(messages),
   })
 

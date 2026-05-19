@@ -24,7 +24,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#065F46"
       },
-      "package": "br.com.ethereontech.laboro.business"
+      "package": "br.com.ethereontech.laboro.business",
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       "expo-router",
@@ -40,6 +41,15 @@
     "scheme": "laboro-business",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "6550ee19-815d-4054-93db-1614a15b484c"
+      }
+    },
+    "owner": "cauatardetti"
   }
 }
