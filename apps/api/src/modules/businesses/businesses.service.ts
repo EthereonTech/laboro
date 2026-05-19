@@ -2,6 +2,7 @@ import { BusinessSegment } from '@prisma/client'
 import { uploadPhoto } from '../../lib/supabase'
 import { asaas } from '../../lib/asaas'
 import { prisma } from '../../lib/prisma'
+import { geocodeAddress } from '../../lib/geocoding'
 import {
   findBusinessByUserId,
   findBusinessById,
@@ -36,6 +37,14 @@ export async function createProfile(userId: string, data: CreateBusinessBody): P
 
   await validateCnpjWithReceita(data.cnpj)
 
+  // Geocodificar endereço automaticamente
+  if (data.address) {
+    const coords = await geocodeAddress(data.address as any)
+    if (coords) {
+      data.address = { ...data.address, lat: coords.lat, lng: coords.lng } as any
+    }
+  }
+
   const biz = await createBusiness(userId, {
     ...data,
     segment: data.segment as BusinessSegment,
@@ -53,10 +62,16 @@ export async function updateProfile(userId: string, data: UpdateBusinessBody): P
   const biz = await findBusinessByUserId(userId)
   if (!biz) throw appError('BUSINESS_NOT_FOUND', 'Perfil de empresa não encontrado')
 
+  let address = data.address as BusinessAddress | undefined
+  if (address) {
+    const coords = await geocodeAddress(address as any)
+    if (coords) address = { ...address, lat: coords.lat, lng: coords.lng }
+  }
+
   const updated = await updateBusiness(biz.id, userId, {
     ...data,
     segment: data.segment as BusinessSegment | undefined,
-    address: data.address as BusinessAddress | undefined,
+    address,
   })
   return toProfile(updated)
 }
