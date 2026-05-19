@@ -1,69 +1,50 @@
 import { randomUUID } from 'crypto'
 import { UserType } from '@prisma/client'
 import { redis } from '../../lib/redis'
-import { sendSms } from '../../lib/twilio'
+import { sendVerification, checkVerification } from '../../lib/twilio'
 import { findUserByPhone, createUserWithProfile } from './auth.repository'
-import { OtpData, RefreshTokenData } from './auth.types'
+import { RefreshTokenData } from './auth.types'
 
-const OTP_TTL = 300          // 5 minutos
-const OTP_MAX_ATTEMPTS = 3
-const OTP_RATE_LIMIT = 3     // máx OTPs por hora por telefone
-const OTP_RATE_TTL = 3600    // 1 hora
 const REFRESH_TTL = 2592000  // 30 dias
-
-const otpKey = (phone: string) => `otp:${phone}`
-const otpRateKey = (phone: string) => `otp_rate:${phone}`
+const typeKey = (phone: string) => `otp_type:${phone}`
 const refreshKey = (token: string) => `refresh:${token}`
 
 export async function sendOtp(phone: string, type: 'worker' | 'business') {
-  const rateK = otpRateKey(phone)
-  const sends = await redis.incr(rateK)
-  if (sends === 1) await redis.expire(rateK, OTP_RATE_TTL)
-  if (sends > OTP_RATE_LIMIT) {
-    throw appError('AUTH_TOO_MANY_ATTEMPTS', 'Muitas tentativas. Aguarde antes de solicitar outro código.')
-  }
-
-  const code = Math.floor(100000 + Math.random() * 900000).toString()
-  const data: OtpData = { code, type, attempts: 0 }
-  await redis.setex(otpKey(phone), OTP_TTL, JSON.stringify(data))
-
-  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_VERIFY_SERVICE_SID) {
+    const code = Math.floor(100000 + Math.random() * 900000).toString()
+    await redis.setex(`otp_dev:${phone}`, 300, JSON.stringify({ code, type }))
     console.info(`[TEST OTP] ${phone} → ${code}`)
     return
   }
 
-  await sendSms(phone, `Seu código Laboro: ${code}. Válido por 5 minutos. Não compartilhe.`)
+  // Salvar o tipo no Redis para usar na verificação
+  await redis.setex(typeKey(phone), 600, type)
+  await sendVerification(phone)
 }
 
 export async function verifyOtpCode(phone: string, code: string) {
-  const key = otpKey(phone)
-  const raw = await redis.get(key)
+  let userType: 'worker' | 'business'
 
-  if (!raw) {
-    throw appError('AUTH_INVALID_OTP', 'Código expirado ou não solicitado')
+  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_VERIFY_SERVICE_SID) {
+    const raw = await redis.get(`otp_dev:${phone}`)
+    if (!raw) throw appError('AUTH_INVALID_OTP', 'Código expirado ou não solicitado')
+    const data = JSON.parse(raw)
+    if (data.code !== code) throw appError('AUTH_INVALID_OTP', 'Código inválido')
+    await redis.del(`otp_dev:${phone}`)
+    userType = data.type
+  } else {
+    const approved = await checkVerification(phone, code)
+    if (!approved) throw appError('AUTH_INVALID_OTP', 'Código inválido ou expirado')
+    const savedType = await redis.get(typeKey(phone))
+    userType = (savedType as 'worker' | 'business') ?? 'worker'
+    await redis.del(typeKey(phone))
   }
-
-  const data: OtpData = JSON.parse(raw)
-  data.attempts++
-
-  if (data.attempts > OTP_MAX_ATTEMPTS) {
-    await redis.del(key)
-    throw appError('AUTH_TOO_MANY_ATTEMPTS', 'Muitas tentativas. Solicite um novo código.')
-  }
-
-  if (data.code !== code) {
-    const ttl = await redis.ttl(key)
-    await redis.setex(key, Math.max(ttl, 1), JSON.stringify(data))
-    throw appError('AUTH_INVALID_OTP', 'Código inválido')
-  }
-
-  await redis.del(key)
 
   let user = await findUserByPhone(phone)
   let isNew = false
 
   if (!user) {
-    user = await createUserWithProfile(phone, data.type as UserType)
+    user = await createUserWithProfile(phone, userType as UserType)
     isNew = true
   }
 
