@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Laboro — Empresa",
+    "slug": "laboro-business",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#065F46"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "br.com.ethereontech.laboro.business",
+      "infoPlist": {
+        "NSCameraUsageDescription": "O Laboro precisa da câmera para enviar o logotipo da empresa.",
+        "NSPhotoLibraryUsageDescription": "O Laboro precisa acessar sua galeria para o logotipo da empresa."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#065F46"
+      },
+      "package": "br.com.ethereontech.laboro.business"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#065F46"
+        }
+      ]
+    ],
+    "scheme": "laboro-business",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

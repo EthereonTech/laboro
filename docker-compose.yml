@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: laboro_postgres
+    environment:
+      POSTGRES_USER: laboro
+      POSTGRES_PASSWORD: laboro_dev
+      POSTGRES_DB: laboro
+    ports:
+      - "5434:5432"
+    volumes:
+      - laboro_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U laboro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  laboro_pgdata:

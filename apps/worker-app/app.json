@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Laboro — Trabalhador",
+    "slug": "laboro-worker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1D4ED8"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "br.com.ethereontech.laboro.worker",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "O Laboro precisa da sua localização para validar o check-in no local da vaga.",
+        "NSCameraUsageDescription": "O Laboro precisa da câmera para você enviar sua foto de perfil.",
+        "NSPhotoLibraryUsageDescription": "O Laboro precisa acessar sua galeria para você enviar sua foto de perfil."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1D4ED8"
+      },
+      "package": "br.com.ethereontech.laboro.worker",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "O Laboro precisa da sua localização para validar o check-in."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1D4ED8"
+        }
+      ]
+    ],
+    "scheme": "laboro-worker",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

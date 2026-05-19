@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserType {
+  worker
+  business
+}
+
+enum PixKeyType {
+  cpf
+  phone
+  email
+  cnpj
+  random
+}
+
+enum WorkerLevel {
+  BEGINNER
+  VERIFIED
+  TOP_PRO
+}
+
+enum BusinessSegment {
+  bar
+  restaurante
+  evento
+  hotel
+  varejo
+  saude
+  logistica
+  outro
+}
+
+enum Specialty {
+  garcom
+  bartender
+  aux_cozinha
+  promotor
+  caixa
+  repositor
+  cuidador
+  aux_logistica
+}
+
+enum ShiftStatus {
+  OPEN
+  FILLED
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum ApplicationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  NO_SHOW
+  COMPLETED
+}
+
+enum EscrowStatus {
+  RESERVED
+  CONFIRMED
+  RELEASED
+  REFUNDED
+  FAILED
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id          String    @id @default(uuid())
+  phone       String    @unique
+  type        UserType
+  full_name   String
+  cpf         String?   @unique
+  photo_url   String?
+  push_token  String?
+  is_verified Boolean   @default(false)
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  deleted_at  DateTime?
+
+  worker   Worker?
+  business Business?
+}
+
+model Worker {
+  id               String      @id @default(uuid())
+  user_id          String      @unique
+  user             User        @relation(fields: [user_id], references: [id])
+  pix_key          String?
+  pix_key_type     PixKeyType?
+  score            Decimal     @default(0) @db.Decimal(3, 2)
+  total_shifts     Int         @default(0)
+  on_time_rate     Decimal     @default(0) @db.Decimal(5, 2)
+  level            WorkerLevel @default(BEGINNER)
+  asaas_customer_id String?
+  suspended_until  DateTime?
+
+  specialties      WorkerSpecialty[]
+  applications     ShiftApplication[]
+  ratings_received Rating[]          @relation("RatingsToWorker")
+}
+
+model WorkerSpecialty {
+  id        String    @id @default(uuid())
+  worker_id String
+  worker    Worker    @relation(fields: [worker_id], references: [id])
+  specialty Specialty
+
+  @@unique([worker_id, specialty])
+}
+
+model Business {
+  id                String          @id @default(uuid())
+  user_id           String          @unique
+  user              User            @relation(fields: [user_id], references: [id])
+  cnpj              String          @unique
+  trade_name        String
+  legal_name        String
+  segment           BusinessSegment
+  address           Json
+  asaas_customer_id String?
+  score             Decimal         @default(0) @db.Decimal(3, 2)
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+  deleted_at        DateTime?
+
+  shifts    Shift[]
+  favorites BusinessFavorite[]
+}
+
+model BusinessFavorite {
+  id          String   @id @default(uuid())
+  business_id String
+  business    Business @relation(fields: [business_id], references: [id])
+  worker_id   String
+  created_at  DateTime @default(now())
+
+  @@unique([business_id, worker_id])
+}
+
+model Shift {
+  id            String      @id @default(uuid())
+  business_id   String
+  business      Business    @relation(fields: [business_id], references: [id])
+  specialty     Specialty
+  starts_at     DateTime
+  ends_at       DateTime
+  slots         Int         @default(1)
+  rate_per_hour Decimal     @db.Decimal(10, 2)
+  total_value   Decimal     @db.Decimal(10, 2)
+  laboro_fee    Decimal     @db.Decimal(10, 2)
+  instructions  String?
+  status        ShiftStatus @default(OPEN)
+  address       Json?
+  is_urgent     Boolean     @default(false)
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+  deleted_at    DateTime?
+
+  applications ShiftApplication[]
+  escrow       EscrowTransaction[]
+}
+
+model ShiftApplication {
+  id          String            @id @default(uuid())
+  shift_id    String
+  shift       Shift             @relation(fields: [shift_id], references: [id])
+  worker_id   String
+  worker      Worker            @relation(fields: [worker_id], references: [id])
+  status      ApplicationStatus @default(PENDING)
+  checkin_at  DateTime?
+  checkin_lat Decimal?          @db.Decimal(10, 7)
+  checkin_lng Decimal?          @db.Decimal(10, 7)
+  checkout_at DateTime?
+  hours_worked Decimal?         @db.Decimal(5, 2)
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+
+  @@unique([shift_id, worker_id])
+}
+
+model EscrowTransaction {
+  id                String       @id @default(uuid())
+  shift_id          String
+  shift             Shift        @relation(fields: [shift_id], references: [id])
+  worker_id         String
+  business_id       String
+  gross_amount      Decimal      @db.Decimal(10, 2)
+  laboro_fee        Decimal      @db.Decimal(10, 2)
+  worker_amount     Decimal      @db.Decimal(10, 2)
+  status            EscrowStatus @default(RESERVED)
+  asaas_payment_id  String?
+  asaas_transfer_id String?
+  idempotency_key   String       @unique
+  reserved_at       DateTime?
+  confirmed_at      DateTime?
+  released_at       DateTime?
+  refunded_at       DateTime?
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
+}
+
+model Rating {
+  id         String   @id @default(uuid())
+  shift_id   String
+  from_id    String
+  to_id      String
+  to_worker  Worker?  @relation("RatingsToWorker", fields: [to_id], references: [id])
+  score      Int
+  tags       String[]
+  comment    String?
+  created_at DateTime @default(now())
+
+  @@unique([shift_id, from_id])
+}
