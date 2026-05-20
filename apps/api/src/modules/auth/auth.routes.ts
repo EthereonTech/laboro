@@ -1,21 +1,14 @@
 import { FastifyInstance } from 'fastify'
 import { ZodError } from 'zod'
 import { authenticate } from '../../middlewares/authenticate'
-import { sendOtpBody, verifyOtpBody, refreshTokenBody, logoutBody } from './auth.schema'
+import { registerBody, loginBody, refreshTokenBody, logoutBody } from './auth.schema'
 import * as authService from './auth.service'
 
 export async function authRoutes(app: FastifyInstance) {
-  // POST /auth/otp/send
-  app.post('/auth/otp/send', async (request, reply) => {
-    const body = sendOtpBody.parse(request.body)
-    await authService.sendOtp(body.phone, body.type)
-    return reply.send({ data: { message: 'Código enviado com sucesso' } })
-  })
-
-  // POST /auth/otp/verify
-  app.post('/auth/otp/verify', async (request, reply) => {
-    const body = verifyOtpBody.parse(request.body)
-    const { user, isNew } = await authService.verifyOtpCode(body.phone, body.code)
+  // POST /auth/register
+  app.post('/auth/register', async (request, reply) => {
+    const body = registerBody.parse(request.body)
+    const { user, isNew } = await authService.register(body)
 
     const accessToken = await reply.jwtSign(
       { sub: user.id, type: user.type },
@@ -23,8 +16,24 @@ export async function authRoutes(app: FastifyInstance) {
     )
     const refreshToken = await authService.createRefreshToken(user.id, user.type as 'worker' | 'business')
 
-    return reply.status(isNew ? 201 : 200).send({
+    return reply.status(201).send({
       data: { accessToken, refreshToken, isNew, type: user.type },
+    })
+  })
+
+  // POST /auth/login
+  app.post('/auth/login', async (request, reply) => {
+    const body = loginBody.parse(request.body)
+    const { user } = await authService.login(body.email, body.password)
+
+    const accessToken = await reply.jwtSign(
+      { sub: user.id, type: user.type },
+      { expiresIn: '15m' },
+    )
+    const refreshToken = await authService.createRefreshToken(user.id, user.type as 'worker' | 'business')
+
+    return reply.status(200).send({
+      data: { accessToken, refreshToken, isNew: false, type: user.type },
     })
   })
 

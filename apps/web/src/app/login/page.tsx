@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
 
-type Step = 'pick' | 'phone' | 'otp'
+type Step = 'pick' | 'form'
+type Mode = 'login' | 'register'
 type UserType = 'worker' | 'business'
 
 const C = {
@@ -23,48 +24,64 @@ function LaboroMark({ size = 48 }: { size?: number }) {
   )
 }
 
+function InputField({ label, type, value, onChange, placeholder }: {
+  label: string; type: string; value: string
+  onChange: (v: string) => void; placeholder: string
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{
+        fontFamily: '"DM Sans", system-ui', fontSize: 12, fontWeight: 700,
+        color: C.textSoft, letterSpacing: 0.5, textTransform: 'uppercase',
+        display: 'block', marginBottom: 6,
+      }}>{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: '100%', appearance: 'none', outline: 0,
+          border: `1.5px solid ${C.line}`, borderRadius: 14,
+          padding: '13px 16px',
+          fontFamily: '"DM Sans", system-ui', fontSize: 15, fontWeight: 500, color: C.text,
+          background: '#fff', transition: 'border-color 120ms', boxSizing: 'border-box',
+        }}
+        onFocus={e => (e.target.style.borderColor = C.navy)}
+        onBlur={e => (e.target.style.borderColor = C.line)}
+      />
+    </div>
+  )
+}
+
 export default function LoginPage() {
   const router = useRouter()
-  const { sendOtp, verifyOtp } = useAuthStore()
+  const { login, register } = useAuthStore()
   const [step, setStep] = useState<Step>('pick')
   const [userType, setUserType] = useState<UserType>('worker')
-  const [phone, setPhone] = useState('')
-  const [code, setCode] = useState('')
+  const [mode, setMode] = useState<Mode>('login')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  function formatPhone(value: string) {
-    const digits = value.replace(/\D/g, '').slice(0, 11)
-    if (digits.length <= 2) return digits
-    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
-  }
-
   function pickType(t: UserType) {
     setUserType(t)
-    setStep('phone')
+    setStep('form')
   }
 
-  async function handleSendOtp() {
-    const digits = phone.replace(/\D/g, '')
-    if (digits.length < 10) { setError('Número inválido'); return }
+  async function handleSubmit() {
     setError(''); setLoading(true)
     try {
-      await sendOtp(`+55${digits}`, userType)
-      setStep('otp')
-    } catch (e: any) {
-      setError(e.message)
-    } finally { setLoading(false) }
-  }
-
-  async function handleVerify() {
-    if (code.length !== 6) { setError('Código deve ter 6 dígitos'); return }
-    setError(''); setLoading(true)
-    try {
-      const digits = phone.replace(/\D/g, '')
-      const { isNew } = await verifyOtp(`+55${digits}`, code, userType)
-      if (isNew && userType === 'worker') { router.replace('/worker/profile?setup=1'); return }
-      if (isNew && userType === 'business') { router.replace('/business/profile?setup=1'); return }
+      if (mode === 'register') {
+        if (!name.trim()) { setError('Nome obrigatório'); setLoading(false); return }
+        const { isNew } = await register(email, password, name.trim(), userType)
+        if (isNew && userType === 'worker') { router.replace('/worker/profile?setup=1'); return }
+        if (isNew && userType === 'business') { router.replace('/business/profile?setup=1'); return }
+      } else {
+        await login(email, password, userType)
+      }
       router.replace(userType === 'business' ? '/business' : '/worker')
     } catch (e: any) {
       setError(e.message)
@@ -80,18 +97,11 @@ export default function LoginPage() {
       padding: '40px 24px',
       position: 'relative', overflow: 'hidden',
     }}>
-      {/* background glows */}
       <div style={{
         position: 'absolute', top: -140, right: -120, width: 420, height: 420,
         borderRadius: '50%',
         background: 'radial-gradient(closest-side, rgba(0,196,140,0.32), rgba(0,196,140,0) 70%)',
         filter: 'blur(2px)', pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute', bottom: -200, left: -160, width: 500, height: 500,
-        borderRadius: '50%',
-        background: 'radial-gradient(closest-side, rgba(27,63,160,0.85), rgba(8,28,87,0) 70%)',
-        pointerEvents: 'none',
       }} />
       <div style={{
         position: 'absolute', inset: 0,
@@ -102,7 +112,6 @@ export default function LoginPage() {
         pointerEvents: 'none',
       }} />
 
-      {/* brand */}
       <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 14, marginBottom: 40 }}>
         <LaboroMark size={52} />
         <span style={{
@@ -113,7 +122,6 @@ export default function LoginPage() {
         </span>
       </div>
 
-      {/* card area */}
       <div style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 440 }}>
 
         {step === 'pick' && (
@@ -133,76 +141,43 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* worker card */}
-            <button
-              onClick={() => pickType('worker')}
-              style={{
-                width: '100%', appearance: 'none', border: 0, textAlign: 'left', cursor: 'pointer',
-                background: C.jade, borderRadius: 22, padding: '18px 20px',
-                display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12,
-                boxShadow: '0 8px 22px rgba(0,196,140,0.28), inset 0 1px 0 rgba(255,255,255,0.3)',
-                transition: 'all 180ms cubic-bezier(.2,.7,.2,1)',
-                fontFamily: '"DM Sans", system-ui',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 14px 30px rgba(0,196,140,0.45), inset 0 1px 0 rgba(255,255,255,0.3)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 22px rgba(0,196,140,0.28), inset 0 1px 0 rgba(255,255,255,0.3)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
-            >
-              <div style={{
-                width: 48, height: 48, borderRadius: 14,
-                background: 'rgba(255,255,255,0.18)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
+            <button onClick={() => pickType('worker')} style={{
+              width: '100%', appearance: 'none', border: 0, textAlign: 'left', cursor: 'pointer',
+              background: C.jade, borderRadius: 22, padding: '18px 20px',
+              display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12,
+              boxShadow: '0 8px 22px rgba(0,196,140,0.28)', fontFamily: '"DM Sans", system-ui',
+            }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
                   <path d="M3 18h18v2H3v-2Zm2-2c0-4 3-7 7-7s7 3 7 7H5Z" stroke="#0A2A1E" strokeWidth="1.8" strokeLinejoin="round"/>
-                  <path d="M10 9V6h4v3" stroke="#0A2A1E" strokeWidth="1.8" strokeLinecap="round"/>
                 </svg>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#0A2A1E', letterSpacing: -0.3, lineHeight: 1.15 }}>Sou trabalhador</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#0A2A1E', letterSpacing: -0.3 }}>Sou trabalhador</div>
                 <div style={{ fontSize: 13.5, color: 'rgba(10,42,30,0.72)', marginTop: 2 }}>Encontre turnos perto de você</div>
               </div>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M9 6l6 6-6 6" stroke="#0A2A1E" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="#0A2A1E" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
 
-            {/* business card */}
-            <button
-              onClick={() => pickType('business')}
-              style={{
-                width: '100%', appearance: 'none', textAlign: 'left', cursor: 'pointer',
-                border: '1px solid rgba(255,255,255,0.18)',
-                background: 'rgba(255,255,255,0.06)',
-                backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-                borderRadius: 22, padding: '18px 20px',
-                display: 'flex', alignItems: 'center', gap: 14,
-                transition: 'all 180ms cubic-bezier(.2,.7,.2,1)',
-                fontFamily: '"DM Sans", system-ui',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.10)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}
-            >
-              <div style={{
-                width: 48, height: 48, borderRadius: 14,
-                background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.10)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
+            <button onClick={() => pickType('business')} style={{
+              width: '100%', appearance: 'none', textAlign: 'left', cursor: 'pointer',
+              border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)',
+              backdropFilter: 'blur(10px)', borderRadius: 22, padding: '18px 20px',
+              display: 'flex', alignItems: 'center', gap: 14, fontFamily: '"DM Sans", system-ui',
+            }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
                   <path d="M4 9l1-4h14l1 4v1a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V9Z" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round"/>
                   <path d="M5 12v8h14v-8" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round"/>
-                  <path d="M10 20v-4h4v4" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round"/>
                 </svg>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 18, fontWeight: 600, color: '#fff', letterSpacing: -0.3, lineHeight: 1.15 }}>Sou empresa</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: '#fff', letterSpacing: -0.3 }}>Sou empresa</div>
                 <div style={{ fontSize: 13.5, color: 'rgba(248,249,252,0.62)', marginTop: 2 }}>Contrate turno por diária ou hora</div>
               </div>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M9 6l6 6-6 6" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
 
-            {/* trust pill */}
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -222,148 +197,61 @@ export default function LoginPage() {
           </>
         )}
 
-        {step === 'phone' && (
+        {step === 'form' && (
           <div style={{
             background: '#fff', borderRadius: 24, padding: '28px 28px 32px',
             boxShadow: '0 20px 60px rgba(8,28,87,0.3)',
           }}>
-            <button
-              onClick={() => { setStep('pick'); setError('') }}
-              style={{
-                appearance: 'none', border: 0, background: 'transparent', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
-                fontFamily: '"DM Sans", system-ui', fontSize: 13, fontWeight: 600,
-                color: C.textMute, marginBottom: 20, padding: 0,
-              }}
-            >
+            <button onClick={() => { setStep('pick'); setError('') }} style={{
+              appearance: 'none', border: 0, background: 'transparent', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontFamily: '"DM Sans", system-ui', fontSize: 13, fontWeight: 600,
+              color: C.textMute, marginBottom: 20, padding: 0,
+            }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               Voltar
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: userType === 'worker' ? '#E6FAF3' : '#EFF1F7',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+            <div style={{ fontFamily: '"Bricolage Grotesque", system-ui', fontSize: 22, fontWeight: 700, color: C.text, letterSpacing: -0.5, marginBottom: 4 }}>
+              {mode === 'login' ? 'Entrar' : 'Criar conta'}
+            </div>
+            <div style={{ fontFamily: '"DM Sans", system-ui', fontSize: 13.5, color: C.textMute, marginBottom: 22 }}>
+              {userType === 'worker' ? 'Conta de trabalhador' : 'Conta de empresa'}
+            </div>
+
+            {mode === 'register' && (
+              <InputField label="Nome completo" type="text" value={name} onChange={setName} placeholder="Seu nome" />
+            )}
+            <InputField label="E-mail" type="email" value={email} onChange={setEmail} placeholder="seu@email.com" />
+            <InputField label="Senha" type="password" value={password} onChange={setPassword} placeholder="••••••••" />
+
+            {error && (
+              <p style={{ fontFamily: '"DM Sans", system-ui', fontSize: 13, color: '#C2511A', marginBottom: 12, marginTop: -4 }}>
+                {error}
+              </p>
+            )}
+
+            <button onClick={handleSubmit} disabled={loading} style={{
+              width: '100%', appearance: 'none', border: 0, cursor: loading ? 'not-allowed' : 'pointer',
+              background: C.jade, color: C.jadeInk, borderRadius: 14, padding: '15px 20px',
+              fontFamily: '"DM Sans", system-ui', fontSize: 15, fontWeight: 700,
+              boxShadow: '0 8px 20px rgba(0,196,140,0.30)',
+              opacity: loading ? 0.7 : 1, marginBottom: 16,
+            }}>
+              {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+            </button>
+
+            <div style={{ textAlign: 'center', fontFamily: '"DM Sans", system-ui', fontSize: 13.5, color: C.textMute }}>
+              {mode === 'login' ? 'Não tem conta? ' : 'Já tem conta? '}
+              <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }} style={{
+                appearance: 'none', border: 0, background: 'transparent', cursor: 'pointer',
+                color: C.navy, fontWeight: 700, fontSize: 13.5, fontFamily: '"DM Sans", system-ui', padding: 0,
               }}>
-                {userType === 'worker'
-                  ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 18h18v2H3v-2Zm2-2c0-4 3-7 7-7s7 3 7 7H5Z" stroke={C.jadeDeep} strokeWidth="1.8" strokeLinejoin="round"/></svg>
-                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 9l1-4h14l1 4v1a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V9Z" stroke={C.navy} strokeWidth="1.8" strokeLinejoin="round"/></svg>
-                }
-              </div>
-              <div>
-                <div style={{ fontFamily: '"DM Sans", system-ui', fontSize: 11.5, fontWeight: 600, color: C.textSoft, letterSpacing: 0.4, textTransform: 'uppercase' }}>
-                  {userType === 'worker' ? 'Trabalhador' : 'Empresa'}
-                </div>
-                <div style={{ fontFamily: '"Bricolage Grotesque", system-ui', fontSize: 18, fontWeight: 700, color: C.text, letterSpacing: -0.4 }}>
-                  Entrar ou criar conta
-                </div>
-              </div>
+                {mode === 'login' ? 'Criar conta' : 'Entrar'}
+              </button>
             </div>
-
-            <div style={{ height: 1, background: C.line, margin: '16px 0' }} />
-
-            <label style={{ fontFamily: '"DM Sans", system-ui', fontSize: 12, fontWeight: 700, color: C.textSoft, letterSpacing: 0.5, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
-              Número de celular
-            </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={e => setPhone(formatPhone(e.target.value))}
-              placeholder="(00) 00000-0000"
-              onKeyDown={e => e.key === 'Enter' && handleSendOtp()}
-              style={{
-                width: '100%', appearance: 'none', outline: 0,
-                border: `1.5px solid ${C.line}`, borderRadius: 14,
-                padding: '14px 16px', marginBottom: 16,
-                fontFamily: '"DM Sans", system-ui', fontSize: 16, fontWeight: 500, color: C.text,
-                background: '#fff', transition: 'border-color 120ms',
-              }}
-              onFocus={e => (e.target.style.borderColor = C.navy)}
-              onBlur={e => (e.target.style.borderColor = C.line)}
-            />
-            {error && <p style={{ fontFamily: '"DM Sans", system-ui', fontSize: 13, color: '#C2511A', marginBottom: 12, marginTop: -8 }}>{error}</p>}
-            <button
-              onClick={handleSendOtp}
-              disabled={loading}
-              style={{
-                width: '100%', appearance: 'none', border: 0, cursor: loading ? 'not-allowed' : 'pointer',
-                background: C.jade, color: C.jadeInk, borderRadius: 14, padding: '15px 20px',
-                fontFamily: '"DM Sans", system-ui', fontSize: 15, fontWeight: 700,
-                boxShadow: '0 8px 20px rgba(0,196,140,0.30)',
-                opacity: loading ? 0.7 : 1,
-                transition: 'all 140ms',
-              }}
-            >
-              {loading ? 'Enviando...' : 'Enviar código SMS'}
-            </button>
-          </div>
-        )}
-
-        {step === 'otp' && (
-          <div style={{
-            background: '#fff', borderRadius: 24, padding: '28px 28px 32px',
-            boxShadow: '0 20px 60px rgba(8,28,87,0.3)',
-          }}>
-            <button
-              onClick={() => { setStep('phone'); setCode(''); setError('') }}
-              style={{
-                appearance: 'none', border: 0, background: 'transparent', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
-                fontFamily: '"DM Sans", system-ui', fontSize: 13, fontWeight: 600,
-                color: C.textMute, marginBottom: 20, padding: 0,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Voltar
-            </button>
-
-            <div style={{ fontFamily: '"Bricolage Grotesque", system-ui', fontSize: 22, fontWeight: 700, color: C.text, letterSpacing: -0.5, marginBottom: 6 }}>
-              Confirme seu número
-            </div>
-            <div style={{ fontFamily: '"DM Sans", system-ui', fontSize: 14, color: C.textMute, marginBottom: 20 }}>
-              Código enviado para <strong style={{ color: C.text }}>{phone}</strong>
-            </div>
-
-            <label style={{ fontFamily: '"DM Sans", system-ui', fontSize: 12, fontWeight: 700, color: C.textSoft, letterSpacing: 0.5, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
-              Código de 6 dígitos
-            </label>
-            <input
-              type="number"
-              value={code}
-              onChange={e => setCode(e.target.value.slice(0, 6))}
-              placeholder="000000"
-              onKeyDown={e => e.key === 'Enter' && handleVerify()}
-              style={{
-                width: '100%', appearance: 'none', outline: 0,
-                border: `1.5px solid ${C.line}`, borderRadius: 14,
-                padding: '14px 16px', marginBottom: 16,
-                fontFamily: '"Bricolage Grotesque", system-ui', fontSize: 28, fontWeight: 800,
-                color: C.text, letterSpacing: 8, textAlign: 'center',
-                background: '#fff', transition: 'border-color 120ms',
-              }}
-              onFocus={e => (e.target.style.borderColor = C.navy)}
-              onBlur={e => (e.target.style.borderColor = C.line)}
-            />
-            {error && <p style={{ fontFamily: '"DM Sans", system-ui', fontSize: 13, color: '#C2511A', marginBottom: 12, marginTop: -8 }}>{error}</p>}
-            <button
-              onClick={handleVerify}
-              disabled={loading}
-              style={{
-                width: '100%', appearance: 'none', border: 0, cursor: loading ? 'not-allowed' : 'pointer',
-                background: C.jade, color: C.jadeInk, borderRadius: 14, padding: '15px 20px',
-                fontFamily: '"DM Sans", system-ui', fontSize: 15, fontWeight: 700,
-                boxShadow: '0 8px 20px rgba(0,196,140,0.30)',
-                opacity: loading ? 0.7 : 1,
-                transition: 'all 140ms',
-              }}
-            >
-              {loading ? 'Verificando...' : 'Entrar'}
-            </button>
           </div>
         )}
       </div>

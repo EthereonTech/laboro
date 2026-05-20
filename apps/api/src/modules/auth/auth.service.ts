@@ -1,59 +1,45 @@
 import { randomUUID } from 'crypto'
+import bcrypt from 'bcryptjs'
 import { UserType } from '@prisma/client'
 import { redis } from '../../lib/redis'
-import { sendVerification, checkVerification } from '../../lib/twilio'
-import { findUserByPhone, createUserWithProfile } from './auth.repository'
+import { findUserByEmail, isEmailTaken, createUserWithProfile } from './auth.repository'
 import { RefreshTokenData } from './auth.types'
 
-const REFRESH_TTL = 2592000  // 30 dias
-const typeKey = (phone: string) => `otp_type:${phone}`
+const REFRESH_TTL = 2592000 // 30 dias
 const refreshKey = (token: string) => `refresh:${token}`
 
-const devPhones = (process.env.DEV_PHONES ?? '').split(',').map(p => p.trim()).filter(Boolean)
-
-export async function sendOtp(phone: string, type: 'worker' | 'business') {
-  const isDevMode = !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_VERIFY_SERVICE_SID
-  const isDevPhone = devPhones.includes(phone)
-
-  if (isDevMode || isDevPhone) {
-    const code = Math.floor(100000 + Math.random() * 900000).toString()
-    await redis.setex(`otp_dev:${phone}`, 300, JSON.stringify({ code, type }))
-    console.info(`[TEST OTP] ${phone} → ${code}`)
-    return
+export async function register(data: {
+  email: string
+  password: string
+  full_name: string
+  phone?: string
+  type: 'worker' | 'business'
+}) {
+  if (await isEmailTaken(data.email)) {
+    throw appError('EMAIL_ALREADY_REGISTERED', 'Este e-mail já está cadastrado')
   }
 
-  // Salvar o tipo no Redis para usar na verificação
-  await redis.setex(typeKey(phone), 600, type)
-  await sendVerification(phone)
+  const password_hash = await bcrypt.hash(data.password, 10)
+
+  const user = await createUserWithProfile({
+    email: data.email,
+    password_hash,
+    full_name: data.full_name,
+    phone: data.phone,
+    type: data.type as UserType,
+  })
+
+  return { user, isNew: true }
 }
 
-export async function verifyOtpCode(phone: string, code: string) {
-  let userType: 'worker' | 'business'
+export async function login(email: string, password: string) {
+  const user = await findUserByEmail(email)
+  if (!user) throw appError('AUTH_INVALID_CREDENTIALS', 'E-mail ou senha incorretos')
 
-  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_VERIFY_SERVICE_SID) {
-    const raw = await redis.get(`otp_dev:${phone}`)
-    if (!raw) throw appError('AUTH_INVALID_OTP', 'Código expirado ou não solicitado')
-    const data = JSON.parse(raw)
-    if (data.code !== code) throw appError('AUTH_INVALID_OTP', 'Código inválido')
-    await redis.del(`otp_dev:${phone}`)
-    userType = data.type
-  } else {
-    const approved = await checkVerification(phone, code)
-    if (!approved) throw appError('AUTH_INVALID_OTP', 'Código inválido ou expirado')
-    const savedType = await redis.get(typeKey(phone))
-    userType = (savedType as 'worker' | 'business') ?? 'worker'
-    await redis.del(typeKey(phone))
-  }
+  const valid = await bcrypt.compare(password, user.password_hash)
+  if (!valid) throw appError('AUTH_INVALID_CREDENTIALS', 'E-mail ou senha incorretos')
 
-  let user = await findUserByPhone(phone)
-  let isNew = false
-
-  if (!user) {
-    user = await createUserWithProfile(phone, userType as UserType)
-    isNew = true
-  }
-
-  return { user, isNew }
+  return { user, isNew: false }
 }
 
 export async function createRefreshToken(userId: string, type: 'worker' | 'business') {
@@ -65,9 +51,7 @@ export async function createRefreshToken(userId: string, type: 'worker' | 'busin
 
 export async function validateRefreshToken(token: string): Promise<RefreshTokenData> {
   const raw = await redis.get(refreshKey(token))
-  if (!raw) {
-    throw appError('AUTH_INVALID_TOKEN', 'Refresh token inválido ou expirado')
-  }
+  if (!raw) throw appError('AUTH_INVALID_TOKEN', 'Refresh token inválido ou expirado')
   return JSON.parse(raw) as RefreshTokenData
 }
 
@@ -78,19 +62,20 @@ export async function revokeRefreshToken(token: string) {
 export async function deleteAccount(userId: string) {
   const { prisma } = await import('../../lib/prisma')
   const now = new Date()
-  // Anonymize PII and soft-delete; financial records (EscrowTransaction) are preserved
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: userId },
       data: {
         deleted_at: now,
         full_name: '[removido]',
+        email: `deleted_${userId}@removed.invalid`,
+        password_hash: '',
         cpf: null,
         photo_url: null,
         push_token: null,
+        phone: null,
       },
     })
-    // Anonymize Pix key from Worker if exists
     await tx.worker.updateMany({
       where: { user_id: userId },
       data: { pix_key: null, pix_key_type: null },

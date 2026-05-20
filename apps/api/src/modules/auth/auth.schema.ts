@@ -1,15 +1,17 @@
 import { z } from 'zod'
 
-const phoneRegex = /^\+55\d{10,11}$/
-
-export const sendOtpBody = z.object({
-  phone: z.string().regex(phoneRegex, 'Telefone inválido. Formato: +5541999999999'),
+export const registerBody = z.object({
+  email: z.string().email('E-mail inválido'),
+  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+  full_name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   type: z.enum(['worker', 'business']),
+  phone: z.string().optional(),
 })
 
-export const verifyOtpBody = z.object({
-  phone: z.string().regex(phoneRegex, 'Telefone inválido'),
-  code: z.string().length(6, 'OTP deve ter exatamente 6 dígitos'),
+export const loginBody = z.object({
+  email: z.string().email('E-mail inválido'),
+  password: z.string().min(1, 'Senha obrigatória'),
+  type: z.enum(['worker', 'business']),
 })
 
 export const refreshTokenBody = z.object({
