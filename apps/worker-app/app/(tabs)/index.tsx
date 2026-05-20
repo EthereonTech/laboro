@@ -1,15 +1,17 @@
 import { useState, useCallback } from 'react'
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  RefreshControl, TextInput, ActivityIndicator,
+  RefreshControl, ScrollView, Dimensions,
 } from 'react-native'
 import { router } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import * as Location from 'expo-location'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
+import { Svg, Path, Circle } from 'react-native-svg'
 import { api } from '../../lib/api'
 import { formatCurrency, formatDateTime, specialtyLabel } from '../../lib/format'
+import { C, ICON_PATHS } from '../../lib/theme'
+import { useAuthStore } from '../../store/auth'
 
 type Shift = {
   id: string
@@ -24,20 +26,453 @@ type Shift = {
   distance_km?: number
 }
 
-const SPECIALTIES = ['', 'garcom', 'bartender', 'aux_cozinha', 'promotor', 'caixa', 'repositor', 'cuidador', 'aux_logistica']
+const SPECIALTIES = [
+  { id: '', label: 'Todas' },
+  { id: 'garcom', label: 'Garçom' },
+  { id: 'bartender', label: 'Bartender' },
+  { id: 'aux_cozinha', label: 'Aux. cozinha' },
+  { id: 'promotor', label: 'Promotor' },
+  { id: 'caixa', label: 'Caixa' },
+]
+
+const COMPANY_COLORS = [
+  '#1B3FA0', '#FF6B35', '#00A372', '#7C2D12', '#6D28D9', '#0369A1',
+]
+
+function getCompanyColor(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return COMPANY_COLORS[Math.abs(hash) % COMPANY_COLORS.length]
+}
+
+function getInitials(name: string) {
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+}
+
+function Avatar({ name, size = 44 }: { name: string; size?: number }) {
+  const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360
+  return (
+    <View style={{
+      width: size,
+      height: size,
+      borderRadius: size / 2,
+      backgroundColor: `hsl(${hue}, 45%, 45%)`,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: C.jade,
+    }}>
+      <Text style={{ color: '#fff', fontWeight: '700', fontSize: size * 0.36 }}>
+        {getInitials(name)}
+      </Text>
+    </View>
+  )
+}
+
+function Header({ name, score, totalShifts, monthEarnings }: {
+  name: string
+  score: number
+  totalShifts: number
+  monthEarnings: number
+}) {
+  return (
+    <View style={hdr.wrap}>
+      <View style={hdr.glowTR} pointerEvents="none" />
+      <View style={hdr.dotGrid} pointerEvents="none" />
+
+      <View style={hdr.inner}>
+        <View style={hdr.topRow}>
+          <View style={hdr.nameRow}>
+            <Avatar name={name} size={44} />
+            <View>
+              <Text style={hdr.greet}>Boa tarde,</Text>
+              <Text style={hdr.nameText}>{name.split(' ')[0]}</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={hdr.bellBtn} onPress={() => {}}>
+            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+              <Path d={ICON_PATHS.bell} stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+            <View style={hdr.bellDot} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Score card */}
+        <View style={hdr.scoreCard}>
+          <View style={hdr.scoreCardHeader}>
+            <Text style={hdr.scoreLabel}>Seu score</Text>
+            <View style={hdr.levelBadge}>
+              <Text style={hdr.levelText}>✓ Verificado</Text>
+            </View>
+          </View>
+          <View style={hdr.statsRow}>
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Svg width={13} height={13} viewBox="0 0 24 24" fill={C.jade}>
+                  <Path d={ICON_PATHS.star} fill={C.jade} />
+                </Svg>
+                <Text style={hdr.statValue}>{score.toFixed(1).replace('.', ',')}</Text>
+              </View>
+              <Text style={hdr.statLabel}>nota</Text>
+            </View>
+            <View>
+              <Text style={hdr.statValue}>{totalShifts}</Text>
+              <Text style={hdr.statLabel}>turnos</Text>
+            </View>
+            <View>
+              <Text style={[hdr.statValue, { fontSize: 18 }]}>{formatCurrency(monthEarnings)}</Text>
+              <Text style={hdr.statLabel}>este mês</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  )
+}
+
+const hdr = StyleSheet.create({
+  wrap: {
+    backgroundColor: C.navy,
+    paddingTop: 60,
+    paddingBottom: 64,
+    paddingHorizontal: 20,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  glowTR: {
+    position: 'absolute',
+    top: -140,
+    right: -100,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(0,196,140,0.18)',
+  },
+  dotGrid: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.05,
+  },
+  inner: { position: 'relative', zIndex: 1 },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  greet: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 0.1,
+  },
+  nameText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: -0.5,
+    marginTop: 1,
+  },
+  bellBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellDot: {
+    position: 'absolute',
+    top: 8,
+    right: 9,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: C.orange,
+    borderWidth: 2,
+    borderColor: C.navy,
+  },
+  scoreCard: {
+    marginTop: 22,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 18,
+    padding: 16,
+  },
+  scoreCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  levelBadge: {
+    backgroundColor: 'rgba(0,196,140,0.16)',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  levelText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#7FE6C5',
+    letterSpacing: 0.2,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: -0.7,
+    lineHeight: 26,
+  },
+  statLabel: {
+    fontSize: 11.5,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 5,
+    letterSpacing: 0.1,
+  },
+})
+
+function MetaPill({ icon, text }: { icon: string; text: string }) {
+  return (
+    <View style={mp.pill}>
+      <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
+        <Path d={icon} stroke={C.navy} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+      <Text style={mp.text}>{text}</Text>
+    </View>
+  )
+}
+const mp = StyleSheet.create({
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: C.surface3,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  text: { fontSize: 12, fontWeight: '500', color: C.textMute },
+})
+
+function ShiftCard({ shift }: { shift: Shift }) {
+  const hours = (new Date(shift.ends_at).getTime() - new Date(shift.starts_at).getTime()) / 3600000
+  const companyColor = getCompanyColor(shift.business.trade_name)
+  const letter = shift.business.trade_name[0].toUpperCase()
+  const dateStr = formatDateTime(shift.starts_at)
+  const timeStr = `${new Date(shift.starts_at).getHours().toString().padStart(2, '0')}:${new Date(shift.starts_at).getMinutes().toString().padStart(2, '0')}–${new Date(shift.ends_at).getHours().toString().padStart(2, '0')}:${new Date(shift.ends_at).getMinutes().toString().padStart(2, '0')}`
+
+  return (
+    <TouchableOpacity
+      style={card.wrap}
+      onPress={() => router.push(`/shifts/${shift.id}`)}
+      activeOpacity={0.92}
+    >
+      {shift.is_urgent && (
+        <View style={card.urgentBadge}>
+          <Text style={card.urgentText}>⚡ Urgente</Text>
+        </View>
+      )}
+
+      <View style={card.topRow}>
+        <View style={[card.companyMark, { backgroundColor: companyColor }]}>
+          <Text style={card.companyLetter}>{letter}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={card.companyName} numberOfLines={1}>
+            {shift.business.trade_name}
+          </Text>
+          <Text style={card.role}>{specialtyLabel(shift.specialty)}</Text>
+        </View>
+      </View>
+
+      <View style={card.metaRow}>
+        <MetaPill icon={ICON_PATHS.calendar} text={dateStr} />
+        <MetaPill icon={ICON_PATHS.clock} text={timeStr} />
+        {shift.distance_km != null && (
+          <MetaPill icon={ICON_PATHS.pin} text={`${shift.distance_km.toFixed(1)} km`} />
+        )}
+      </View>
+
+      <View style={card.footer}>
+        <View>
+          <Text style={card.value}>{formatCurrency(shift.total_value)}</Text>
+          <View style={card.escrowRow}>
+            <Svg width={10} height={11} viewBox="0 0 24 24" fill="none">
+              <Path d={ICON_PATHS.lock} stroke={C.jadeDeep} strokeWidth={2} />
+            </Svg>
+            <Text style={card.escrowText}>Reservado em escrow · {hours.toFixed(0)}h</Text>
+          </View>
+        </View>
+        <View style={card.ctaBtn}>
+          <Text style={card.ctaText}>Ver vaga</Text>
+          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+            <Path d={ICON_PATHS.chevR} stroke={C.jadeInk} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+        </View>
+      </View>
+    </TouchableOpacity>
+  )
+}
+
+const card = StyleSheet.create({
+  wrap: {
+    backgroundColor: C.surface,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: C.line,
+    shadowColor: C.navy,
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  urgentBadge: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    backgroundColor: C.orange,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  urgentText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  topRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  companyMark: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  companyLetter: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: -0.5,
+  },
+  companyName: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: C.textMute,
+    letterSpacing: 0.1,
+  },
+  role: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: C.text,
+    letterSpacing: -0.5,
+    marginTop: 1,
+    lineHeight: 24,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: C.line,
+    borderStyle: 'dashed',
+  },
+  value: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: C.jadeDeep,
+    letterSpacing: -0.8,
+    lineHeight: 28,
+  },
+  escrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  escrowText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: C.textSoft,
+  },
+  ctaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: C.jade,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    shadowColor: C.jade,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  ctaText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: C.jadeInk,
+    letterSpacing: -0.1,
+  },
+})
 
 export default function HomeScreen() {
   const [specialty, setSpecialty] = useState('')
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const user = useAuthStore((s) => s.user)
+
+  // Placeholder worker data — will be replaced by profile query
+  const workerName = 'Trabalhador'
+  const workerScore = 4.9
+  const workerShifts = 0
+  const workerMonthEarnings = 0
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['shifts', specialty, coords],
     queryFn: async () => {
       let qs = specialty ? `specialty=${specialty}` : ''
       if (coords) qs += `${qs ? '&' : ''}lat=${coords.lat}&lng=${coords.lng}`
-      const shifts = await api.get<Shift[]>(`/shifts${qs ? '?' + qs : ''}`)
-      return shifts
+      return api.get<Shift[]>(`/shifts${qs ? '?' + qs : ''}`)
     },
+    enabled: !!user,
   })
 
   const requestLocation = useCallback(async () => {
@@ -47,114 +482,171 @@ export default function HomeScreen() {
     setCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude })
   }, [])
 
-  return (
-    <SafeAreaView style={s.container} edges={['top']}>
-      <View style={s.header}>
-        <Text style={s.logo}>Laboro</Text>
-        <TouchableOpacity onPress={requestLocation} style={s.locationBtn}>
-          <Ionicons name="location-outline" size={20} color="#1D4ED8" />
-          <Text style={s.locationText}>{coords ? 'Perto de mim' : 'Usar localização'}</Text>
-        </TouchableOpacity>
-      </View>
+  const urgentCount = data?.filter(s => s.is_urgent).length ?? 0
 
+  return (
+    <View style={{ flex: 1, backgroundColor: C.surface2 }}>
+      <SafeAreaView edges={['top']} style={{ flex: 0, backgroundColor: C.navy }} />
       <FlatList
-        horizontal
-        data={SPECIALTIES}
-        keyExtractor={(i) => i || 'all'}
-        showsHorizontalScrollIndicator={false}
-        style={s.filterList}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[s.filterChip, specialty === item && s.filterChipActive]}
-            onPress={() => setSpecialty(item)}
-          >
-            <Text style={[s.filterChipText, specialty === item && s.filterChipTextActive]}>
-              {item ? specialtyLabel(item) : 'Todas'}
-            </Text>
-          </TouchableOpacity>
-        )}
-      />
+        data={data ?? []}
+        keyExtractor={(s) => s.id}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={C.jade}
+            colors={[C.jade]}
+          />
+        }
+        ListHeaderComponent={
+          <View>
+            <Header
+              name={workerName}
+              score={workerScore}
+              totalShifts={workerShifts}
+              monthEarnings={workerMonthEarnings}
+            />
 
-      {isLoading ? (
-        <ActivityIndicator style={{ marginTop: 60 }} color="#1D4ED8" size="large" />
-      ) : (
-        <FlatList
-          data={data ?? []}
-          keyExtractor={(s) => s.id}
-          contentContainerStyle={{ padding: 16, gap: 12 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#1D4ED8" />}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Text style={s.emptyIcon}>🔍</Text>
-              <Text style={s.emptyText}>Nenhuma vaga disponível agora</Text>
-              <Text style={s.emptySubtext}>Tente mudar os filtros ou verificar mais tarde</Text>
+            {/* Floating section */}
+            <View style={list.floatSection}>
+              {/* Section header */}
+              <View style={list.sectionHeader}>
+                <View>
+                  <Text style={list.sectionTitle}>Vagas para você</Text>
+                  <Text style={list.sectionSub}>
+                    {urgentCount > 0 && (
+                      <Text style={{ color: C.orange, fontWeight: '700' }}>
+                        {urgentCount} urgente{urgentCount > 1 ? 's' : ''} ·{' '}
+                      </Text>
+                    )}
+                    {data?.length ?? 0} disponíveis hoje
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={requestLocation}>
+                  <Text style={list.sectionLink}>
+                    {coords ? '📍 Perto de mim' : 'Ver mapa'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Filter chips */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={list.chips}
+              >
+                {SPECIALTIES.map((sp) => (
+                  <TouchableOpacity
+                    key={sp.id}
+                    style={[list.chip, specialty === sp.id && list.chipActive]}
+                    onPress={() => setSpecialty(sp.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[list.chipText, specialty === sp.id && list.chipTextActive]}>
+                      {sp.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
-          }
-          renderItem={({ item }) => <ShiftCard shift={item} />}
-        />
-      )}
-    </SafeAreaView>
+          </View>
+        }
+        contentContainerStyle={list.content}
+        renderItem={({ item }) => <ShiftCard shift={item} />}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ListEmptyComponent={
+          isLoading ? null : (
+            <View style={list.empty}>
+              <Text style={list.emptyIcon}>🔍</Text>
+              <Text style={list.emptyText}>Nenhuma vaga disponível agora</Text>
+              <Text style={list.emptySub}>Tente mudar os filtros ou verificar mais tarde</Text>
+            </View>
+          )
+        }
+      />
+    </View>
   )
 }
 
-function ShiftCard({ shift }: { shift: Shift }) {
-  const hours = (new Date(shift.ends_at).getTime() - new Date(shift.starts_at).getTime()) / 3600000
-
-  return (
-    <TouchableOpacity style={c.card} onPress={() => router.push(`/shifts/${shift.id}`)}>
-      {shift.is_urgent && (
-        <View style={c.urgentBadge}>
-          <Text style={c.urgentText}>⚡ Urgente</Text>
-        </View>
-      )}
-      <View style={c.row}>
-        <View style={c.specialtyBadge}>
-          <Text style={c.specialtyText}>{specialtyLabel(shift.specialty)}</Text>
-        </View>
-        <Text style={c.value}>{formatCurrency(shift.total_value)}</Text>
-      </View>
-      <Text style={c.business}>{shift.business.trade_name}</Text>
-      <Text style={c.datetime}>{formatDateTime(shift.starts_at)} · {hours.toFixed(1)}h</Text>
-      <View style={c.footer}>
-        <Text style={c.location}>
-          📍 {shift.business.address.neighborhood ?? shift.business.address.city}
-          {shift.distance_km ? ` · ${shift.distance_km.toFixed(1)}km` : ''}
-        </Text>
-        <Text style={c.rate}>{formatCurrency(shift.rate_per_hour)}/h</Text>
-      </View>
-    </TouchableOpacity>
-  )
-}
-
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  logo: { fontSize: 24, fontWeight: '800', color: '#1D4ED8' },
-  locationBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationText: { fontSize: 13, color: '#1D4ED8', fontWeight: '600' },
-  filterList: { maxHeight: 48, marginBottom: 4 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB' },
-  filterChipActive: { backgroundColor: '#1D4ED8', borderColor: '#1D4ED8' },
-  filterChipText: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
-  filterChipTextActive: { color: '#fff', fontWeight: '700' },
-  empty: { alignItems: 'center', paddingTop: 60 },
+const list = StyleSheet.create({
+  floatSection: {
+    marginTop: -32,
+    backgroundColor: C.surface2,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 22,
+    zIndex: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: C.text,
+    letterSpacing: -0.6,
+  },
+  sectionSub: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: C.textSoft,
+    marginTop: 2,
+  },
+  sectionLink: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.navy,
+  },
+  chips: {
+    paddingHorizontal: 20,
+    gap: 8,
+    paddingBottom: 4,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.line,
+  },
+  chipActive: {
+    backgroundColor: C.navy,
+    borderColor: C.navy,
+  },
+  chipText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: C.text,
+    letterSpacing: -0.1,
+  },
+  chipTextActive: {
+    color: '#fff',
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  empty: {
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingHorizontal: 20,
+  },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { fontSize: 17, fontWeight: '600', color: '#374151', marginBottom: 4 },
-  emptySubtext: { fontSize: 14, color: '#9CA3AF' },
-})
-
-const c = StyleSheet.create({
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  urgentBadge: { backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 8 },
-  urgentText: { fontSize: 12, color: '#92400E', fontWeight: '700' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  specialtyBadge: { backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  specialtyText: { fontSize: 13, color: '#1D4ED8', fontWeight: '600' },
-  value: { fontSize: 20, fontWeight: '800', color: '#111827' },
-  business: { fontSize: 15, fontWeight: '600', color: '#374151', marginBottom: 2 },
-  datetime: { fontSize: 13, color: '#6B7280', marginBottom: 8 },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  location: { fontSize: 13, color: '#9CA3AF' },
-  rate: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
+  emptyText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: C.text,
+    marginBottom: 4,
+  },
+  emptySub: {
+    fontSize: 14,
+    color: C.textMute,
+    textAlign: 'center',
+  },
 })

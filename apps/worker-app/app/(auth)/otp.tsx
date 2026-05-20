@@ -4,8 +4,12 @@ import {
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
+import { LinearGradient } from 'expo-linear-gradient'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Svg, Path } from 'react-native-svg'
 import Toast from 'react-native-toast-message'
 import { useAuthStore } from '../../store/auth'
+import { C } from '../../lib/theme'
 
 export default function OtpScreen() {
   const { phone } = useLocalSearchParams<{ phone: string }>()
@@ -54,62 +58,210 @@ export default function OtpScreen() {
     }
   }
 
+  // Render 6 digit boxes from the hidden input value
+  const digits = code.padEnd(6, ' ').split('')
+
   return (
-    <KeyboardAvoidingView
-      style={s.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={s.content}>
-        <TouchableOpacity onPress={() => router.back()} style={s.back}>
-          <Text style={s.backText}>← Voltar</Text>
-        </TouchableOpacity>
+    <View style={{ flex: 1, backgroundColor: C.navy }}>
+      <LinearGradient
+        colors={[C.navyLight, C.navy, C.navyDeep]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={s.glowTR} pointerEvents="none" />
 
-        <Text style={s.title}>Digite o código</Text>
-        <Text style={s.subtitle}>
-          Enviamos um SMS para {phone}
-        </Text>
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+            <Svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <Path d="M15 6l-6 6 6 6" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </TouchableOpacity>
 
-        <TextInput
-          ref={inputRef}
-          style={s.input}
-          value={code}
-          onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
-          keyboardType="number-pad"
-          maxLength={6}
-          textAlign="center"
-        />
+          <View style={s.content}>
+            <Text style={s.stepLabel}>Verificação por SMS</Text>
+            <Text style={s.title}>Digite o{'\n'}código</Text>
+            <Text style={s.subtitle}>
+              Enviamos 6 dígitos para{'\n'}
+              <Text style={{ color: '#fff', fontWeight: '600' }}>{phone}</Text>
+            </Text>
 
-        {loading && <ActivityIndicator color="#1D4ED8" style={{ marginTop: 16 }} />}
+            {/* Hidden real input */}
+            <TextInput
+              ref={inputRef}
+              style={s.hiddenInput}
+              value={code}
+              onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              maxLength={6}
+              caretHidden
+            />
 
-        <TouchableOpacity onPress={handleResend} disabled={resendCooldown > 0} style={s.resend}>
-          <Text style={[s.resendText, resendCooldown > 0 && s.resendDisabled]}>
-            {resendCooldown > 0 ? `Reenviar em ${resendCooldown}s` : 'Reenviar código'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+            {/* Visual digit boxes */}
+            <TouchableOpacity
+              style={s.digitsRow}
+              onPress={() => inputRef.current?.focus()}
+              activeOpacity={1}
+            >
+              {digits.map((d, i) => (
+                <View
+                  key={i}
+                  style={[
+                    s.digitBox,
+                    code.length === i && s.digitBoxActive,
+                    d.trim() !== '' && s.digitBoxFilled,
+                  ]}
+                >
+                  <Text style={s.digitText}>{d.trim()}</Text>
+                </View>
+              ))}
+            </TouchableOpacity>
+
+            {loading && (
+              <View style={s.loadingRow}>
+                <ActivityIndicator color={C.jade} size="small" />
+                <Text style={s.loadingText}>Verificando…</Text>
+              </View>
+            )}
+
+            <View style={{ flex: 1 }} />
+
+            <TouchableOpacity
+              onPress={handleResend}
+              disabled={resendCooldown > 0}
+              style={s.resendBtn}
+            >
+              <Text style={[s.resendText, resendCooldown > 0 && s.resendDisabled]}>
+                {resendCooldown > 0
+                  ? `Reenviar código em ${resendCooldown}s`
+                  : 'Reenviar código'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={s.hint}>
+              Não recebeu? Verifique sua caixa de mensagens ou aguarde até 2 minutos.
+            </Text>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   )
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { flex: 1, padding: 24, justifyContent: 'center' },
-  back: { position: 'absolute', top: 60, left: 24 },
-  backText: { color: '#1D4ED8', fontSize: 16 },
-  title: { fontSize: 24, fontWeight: '700', color: '#111827', marginBottom: 8 },
-  subtitle: { fontSize: 15, color: '#6B7280', marginBottom: 40 },
-  input: {
-    borderWidth: 2,
-    borderColor: '#1D4ED8',
-    borderRadius: 12,
-    padding: 20,
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#111827',
-    letterSpacing: 12,
-    marginBottom: 24,
+  glowTR: {
+    position: 'absolute',
+    top: -140,
+    right: -120,
+    width: 420,
+    height: 420,
+    borderRadius: 210,
+    backgroundColor: 'rgba(0,196,140,0.12)',
   },
-  resend: { alignItems: 'center', marginTop: 16 },
-  resendText: { color: '#1D4ED8', fontSize: 15, fontWeight: '600' },
-  resendDisabled: { color: '#9CA3AF' },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 20,
+    marginTop: 12,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 24,
+  },
+  stepLabel: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -1.2,
+    lineHeight: 40,
+    marginBottom: 12,
+  },
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: 'rgba(248,249,252,0.62)',
+    marginBottom: 36,
+  },
+  hiddenInput: {
+    position: 'absolute',
+    opacity: 0,
+    width: 1,
+    height: 1,
+  },
+  digitsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  digitBox: {
+    width: 48,
+    height: 58,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  digitBoxActive: {
+    borderColor: C.jade,
+    backgroundColor: 'rgba(0,196,140,0.10)',
+  },
+  digitBoxFilled: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  digitText: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 24,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  resendBtn: {
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  resendText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: C.jade,
+  },
+  resendDisabled: {
+    color: 'rgba(255,255,255,0.4)',
+  },
+  hint: {
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 18,
+    color: 'rgba(248,249,252,0.35)',
+  },
 })
