@@ -154,14 +154,17 @@ export async function listShiftsForWorker(userId: string, query: ListShiftsQuery
   const page = query.page ?? 1
   const limit = query.limit ?? 20
 
+  const hasLocation = query.lat != null && query.lng != null
+
   const withDistance = shifts
     .map((shift) => {
+      if (!hasLocation) return { shift, distance: Infinity }
       const addr = (shift.address ?? shift.business.address) as ShiftAddress | null
       if (!addr?.lat || !addr?.lng) return { shift, distance: Infinity }
-      const distance = haversineDistance(query.lat, query.lng, addr.lat, addr.lng)
+      const distance = haversineDistance(query.lat!, query.lng!, addr.lat, addr.lng)
       return { shift, distance }
     })
-    .filter(({ distance }) => distance <= radius)
+    .filter(({ distance }) => !hasLocation || distance <= radius)
     .sort((a, b) => {
       if (a.shift.is_urgent !== b.shift.is_urgent) return a.shift.is_urgent ? -1 : 1
       return a.shift.starts_at.getTime() - b.shift.starts_at.getTime()

@@ -79,8 +79,8 @@ export const updateShiftBody = z.object({
 })
 
 export const listShiftsQuery = z.object({
-  lat: z.coerce.number({ required_error: 'Latitude obrigatória' }),
-  lng: z.coerce.number({ required_error: 'Longitude obrigatória' }),
+  lat: z.coerce.number().optional(),
+  lng: z.coerce.number().optional(),
   radius: z.coerce.number().positive().default(50000), // metros, padrão 50km
   specialty: z.enum(specialties).optional(),
   date: z.string().date().optional(),
