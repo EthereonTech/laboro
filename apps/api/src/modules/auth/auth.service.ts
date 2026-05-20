@@ -9,8 +9,13 @@ const REFRESH_TTL = 2592000  // 30 dias
 const typeKey = (phone: string) => `otp_type:${phone}`
 const refreshKey = (token: string) => `refresh:${token}`
 
+const devPhones = (process.env.DEV_PHONES ?? '').split(',').map(p => p.trim()).filter(Boolean)
+
 export async function sendOtp(phone: string, type: 'worker' | 'business') {
-  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_VERIFY_SERVICE_SID) {
+  const isDevMode = !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_VERIFY_SERVICE_SID
+  const isDevPhone = devPhones.includes(phone)
+
+  if (isDevMode || isDevPhone) {
     const code = Math.floor(100000 + Math.random() * 900000).toString()
     await redis.setex(`otp_dev:${phone}`, 300, JSON.stringify({ code, type }))
     console.info(`[TEST OTP] ${phone} → ${code}`)
