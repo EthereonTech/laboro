@@ -1,4 +1,5 @@
 {
   "framework": "nextjs",
+  "installCommand": "npm ci --prefix ../..",
   "buildCommand": "next build"
 }
