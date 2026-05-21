@@ -25,22 +25,22 @@ const I = {
   sparkle:   'M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z',
 }
 
+type DashboardShift = {
+  id: string
+  specialty: string
+  starts_at: string
+  ends_at: string
+  status: string
+  slots: number
+  total_value: number
+  applications: { id: string; status: string }[]
+}
+
 type Dashboard = {
-  active_shifts: number
+  active_shifts: DashboardShift[]
   monthly_spent: number
   pending_applications: number
   completed_shifts: number
-  recent_shifts: {
-    id: string
-    specialty: string
-    starts_at: string
-    ends_at: string
-    status: string
-    slots: number
-    total_value: number
-    applications_count?: number
-    confirmed_count?: number
-  }[]
 }
 
 const STATUS: Record<string, { bg: string; fg: string; dot: string; label: string }> = {
@@ -120,9 +120,9 @@ function MetricCard({
   )
 }
 
-function ShiftRow({ shift }: { shift: NonNullable<Dashboard['recent_shifts']>[number] }) {
+function ShiftRow({ shift }: { shift: DashboardShift }) {
   const st = STATUS[shift.status] ?? STATUS.OPEN
-  const confirmed = shift.confirmed_count ?? shift.applications_count ?? 0
+  const confirmed = shift.applications?.filter(a => a.status === 'CONFIRMED').length ?? 0
   const fillPct = shift.slots > 0 ? Math.min((confirmed / shift.slots) * 100, 100) : 0
 
   return (
@@ -280,7 +280,7 @@ export default function BusinessDashboardPage() {
     weekday: 'long', day: 'numeric', month: 'long',
   })
 
-  const hasShifts = (data?.recent_shifts?.length ?? 0) > 0
+  const hasShifts = (data?.active_shifts?.length ?? 0) > 0
 
   return (
     <div style={{ background: C.surface2, minHeight: '100vh', padding: '32px 40px 60px' }}>
@@ -325,7 +325,7 @@ export default function BusinessDashboardPage() {
 
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 32 }}>
-        <MetricCard loading={isLoading} icon={I.briefcase} value={String(data?.active_shifts ?? 0)} label="Vagas abertas" sub="aguardando candidatos" />
+        <MetricCard loading={isLoading} icon={I.briefcase} value={String(data?.active_shifts?.length ?? 0)} label="Vagas abertas" sub="aguardando candidatos" />
         <MetricCard loading={isLoading} icon={I.users} value={String(data?.pending_applications ?? 0)} label="Candidatos" sub="aguardando confirmação" />
         <MetricCard loading={isLoading} icon={I.check} value={String(data?.completed_shifts ?? 0)} label="Turnos concluídos" sub="histórico total" />
         <MetricCard loading={isLoading} icon={I.shield} value={formatCurrency(data?.monthly_spent ?? 0)} label="Gasto este mês" sub="via escrow Laboro" accent />
@@ -335,7 +335,7 @@ export default function BusinessDashboardPage() {
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <h2 style={{ fontFamily: '"Bricolage Grotesque", system-ui', fontSize: 18, fontWeight: 700, color: C.text, letterSpacing: -0.4, margin: 0 }}>
-            {hasShifts ? 'Vagas recentes' : 'Como começar'}
+            {hasShifts ? 'Vagas ativas' : 'Como começar'}
           </h2>
           {hasShifts && (
             <Link href="/business/shifts" style={{
@@ -364,7 +364,7 @@ export default function BusinessDashboardPage() {
           </div>
         ) : hasShifts ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {data!.recent_shifts.map(shift => <ShiftRow key={shift.id} shift={shift} />)}
+            {data!.active_shifts.map(shift => <ShiftRow key={shift.id} shift={shift} />)}
           </div>
         ) : (
           <GettingStarted />
