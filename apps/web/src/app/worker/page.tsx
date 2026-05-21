@@ -171,7 +171,7 @@ export default function WorkerShiftsPage() {
 
   const { data: shifts, isLoading: shiftsLoading } = useQuery({
     queryKey: ['worker-shifts'],
-    queryFn: () => api.get<{ data: Shift[]; meta: { total: number } }>('/shifts?limit=50'),
+    queryFn: () => api.get<Shift[]>('/shifts?limit=50'),
     placeholderData: (prev) => prev,
   })
   const { data: profile, isLoading: profileLoading } = useQuery({
@@ -186,8 +186,8 @@ export default function WorkerShiftsPage() {
   const shifts_ = profile?.total_shifts ?? 0
   const earnings = profile?.earnings_month ?? 0
   const lv = LEVEL[profile?.level ?? 'BEGINNER']
-  const urgent = shifts?.data?.filter(s => s.is_urgent).length ?? 0
-  const total  = shifts?.meta?.total ?? 0
+  const urgent = shifts?.filter(s => s.is_urgent).length ?? 0
+  const total  = shifts?.length ?? 0
 
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -272,7 +272,7 @@ export default function WorkerShiftsPage() {
         <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
           {[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}
         </div>
-      ) : !shifts?.data?.length ? (
+      ) : !shifts?.length ? (
         <div style={{ background: C.surface, borderRadius: 16, padding: '52px 24px', textAlign: 'center', border: `1px solid ${C.line}` }}>
           <svg width={44} height={44} viewBox="0 0 44 44" fill="none" style={{ margin: '0 auto 14px', display: 'block', opacity: 0.3 }}>
             <circle cx="20" cy="20" r="13" stroke={C.navy} strokeWidth={2} />
@@ -288,7 +288,7 @@ export default function WorkerShiftsPage() {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
-          {shifts.data.map(shift => <VagaCard key={shift.id} shift={shift} />)}
+          {shifts.map(shift => <VagaCard key={shift.id} shift={shift} />)}
         </div>
       )}
 

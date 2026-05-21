@@ -37,7 +37,7 @@ export async function shiftsRoutes(app: FastifyInstance) {
     const { sub } = request.user as { sub: string }
     const query = listShiftsQuery.parse(request.query)
     const result = await shiftsService.listShiftsForWorker(sub, query)
-    return reply.send({ data: result })
+    return reply.send(result)
   })
 
   // GET /shifts/mine — empresa lista suas vagas
