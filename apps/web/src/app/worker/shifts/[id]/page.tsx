@@ -62,30 +62,24 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-function MiniMap() {
+function InteractiveMap({ address }: { address: ShiftDetail['address'] | null }) {
+  const query = address
+    ? encodeURIComponent(`${address.street}, ${address.number}, ${address.neighborhood}, ${address.city}, ${address.state}`)
+    : null
+
+  if (!query) return null
+
   return (
-    <div style={{ borderRadius: 16, overflow: 'hidden', height: 130, border: `1px solid ${C.line}` }}>
-      <svg viewBox="0 0 400 130" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
-        <rect width="400" height="130" fill="#F1F3F9"/>
-        <defs>
-          <pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M20 0H0v20" fill="none" stroke="#E6E8F0" strokeWidth="1"/>
-          </pattern>
-        </defs>
-        <rect width="400" height="130" fill="url(#g)"/>
-        <path d="M0 85 L400 68" stroke="#fff" strokeWidth="14"/>
-        <path d="M130 -10 L155 140" stroke="#fff" strokeWidth="10"/>
-        <path d="M260 -10 L280 140" stroke="#fff" strokeWidth="8"/>
-        <path d="M-10 25 L410 45" stroke="#fff" strokeWidth="6"/>
-        <rect x="175" y="15" width="65" height="38" rx="6" fill="#DCEFE0"/>
-        <path d="M-10 125 Q 110 105 210 118 T 420 108 L 420 140 L -10 140 Z" fill="#D7E2F2"/>
-        <g transform="translate(200, 58)">
-          <circle r="20" fill="#1B3FA0" opacity="0.15"/>
-          <circle r="12" fill="#1B3FA0" opacity="0.22"/>
-          <path d="M0 -16 C 6 -16 10 -11 10 -7 C 10 -2 0 8 0 8 C 0 8 -10 -2 -10 -7 C -10 -11 -6 -16 0 -16 Z" fill="#1B3FA0"/>
-          <circle cy="-9" r="3" fill="#fff"/>
-        </g>
-      </svg>
+    <div style={{ borderRadius: 16, overflow: 'hidden', height: 220, border: `1px solid ${C.line}`, position: 'relative' }}>
+      <iframe
+        title="Localização da vaga"
+        width="100%"
+        height="100%"
+        style={{ border: 0, display: 'block' }}
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        src={`https://maps.google.com/maps?q=${query}&output=embed&z=16`}
+      />
     </div>
   )
 }
@@ -339,7 +333,7 @@ export default function WorkerShiftDetailPage() {
           <div style={{ fontFamily: '"Bricolage Grotesque", system-ui', fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: -0.2, marginBottom: 10 }}>
             Localização
           </div>
-          <MiniMap />
+          <InteractiveMap address={shift.address} />
           <div style={{
             marginTop: 10, background: '#fff', borderRadius: 14, padding: '14px 16px',
             border: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 12,
