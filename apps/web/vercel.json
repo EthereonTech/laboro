@@ -1,5 +1,5 @@
 {
   "framework": "nextjs",
-  "installCommand": "npm ci --prefix ../..",
+  "installCommand": "[ -f ../../package.json ] || npm install",
   "buildCommand": "next build"
 }
