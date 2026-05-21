@@ -23,7 +23,8 @@ type Shift = {
   slots: number
   is_urgent: boolean
   status: string
-  business: { trade_name: string; address: { city: string; neighborhood: string } }
+  business_name: string
+  address: { city: string; neighborhood: string; street: string; number: string; state: string; zip: string }
 }
 
 const LEVEL: Record<string, { label: string; fg: string; bg: string }> = {
@@ -63,7 +64,7 @@ function MetricCard({ value, label, loading = false }: { value: string; label: s
 
 function VagaCard({ shift }: { shift: Shift }) {
   const hours = (new Date(shift.ends_at).getTime() - new Date(shift.starts_at).getTime()) / 3600000
-  const bizColor = BIZ_COLORS[shift.business.trade_name.charCodeAt(0) % BIZ_COLORS.length]
+  const bizColor = BIZ_COLORS[shift.business_name.charCodeAt(0) % BIZ_COLORS.length]
 
   return (
     <Link href={`/worker/shifts/${shift.id}`} style={{ textDecoration: 'none', display: 'block' }}>
@@ -95,11 +96,11 @@ function VagaCard({ shift }: { shift: Shift }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontFamily: '"Bricolage Grotesque", system-ui', fontWeight: 700, fontSize: 17,
           }}>
-            {shift.business.trade_name[0].toUpperCase()}
+            {shift.business_name[0]?.toUpperCase() ?? '?'}
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: '"DM Sans", system-ui', fontSize: 12.5, fontWeight: 500, color: C.textMute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {shift.business.trade_name}
+              {shift.business_name}
             </div>
             <div style={{ fontFamily: '"Bricolage Grotesque", system-ui', fontSize: 17, fontWeight: 700, color: C.text, letterSpacing: -0.4, marginTop: 1 }}>
               {specialtyLabel(shift.specialty)}
@@ -112,7 +113,7 @@ function VagaCard({ shift }: { shift: Shift }) {
           {[
             formatDateTime(shift.starts_at),
             `${hours.toFixed(1)}h`,
-            `${shift.business.address.neighborhood} · ${shift.business.address.city}`,
+            `${shift.address?.neighborhood ?? ''} · ${shift.address?.city ?? ''}`,
           ].map(text => (
             <span key={text} style={{
               background: C.surface3, color: C.textMute,
