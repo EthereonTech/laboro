@@ -98,7 +98,17 @@ export default function CreateShiftPage() {
     },
   })
 
-  const canSubmit = form.specialty && form.starts_at && form.ends_at && rateNum > 0 && hours > 0
+  const now = new Date()
+  const startsAt = form.starts_at ? new Date(form.starts_at) : null
+  const endsAt = form.ends_at ? new Date(form.ends_at) : null
+
+  let clientError: string | null = null
+  if (startsAt && startsAt <= now) clientError = 'O horário de início deve ser no futuro'
+  else if (startsAt && endsAt && endsAt <= startsAt) clientError = 'O horário de término deve ser após o início'
+
+  const canSubmit = form.specialty && form.starts_at && form.ends_at && rateNum > 0 && hours > 0 && !clientError
+
+
   const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
@@ -155,9 +165,9 @@ export default function CreateShiftPage() {
                 type="datetime-local"
                 value={form.starts_at}
                 onChange={e => set('starts_at', e.target.value)}
-                style={inputStyle}
-                onFocus={e => (e.target.style.borderColor = C.navy)}
-                onBlur={e => (e.target.style.borderColor = C.line)}
+                style={{ ...inputStyle, borderColor: startsAt && startsAt <= now ? '#FCA5A5' : C.line }}
+                onFocus={e => (e.target.style.borderColor = startsAt && startsAt <= now ? '#F87171' : C.navy)}
+                onBlur={e => (e.target.style.borderColor = startsAt && startsAt <= now ? '#FCA5A5' : C.line)}
               />
             </Field>
             <Field label="Término">
@@ -165,9 +175,9 @@ export default function CreateShiftPage() {
                 type="datetime-local"
                 value={form.ends_at}
                 onChange={e => set('ends_at', e.target.value)}
-                style={inputStyle}
-                onFocus={e => (e.target.style.borderColor = C.navy)}
-                onBlur={e => (e.target.style.borderColor = C.line)}
+                style={{ ...inputStyle, borderColor: startsAt && endsAt && endsAt <= startsAt ? '#FCA5A5' : C.line }}
+                onFocus={e => (e.target.style.borderColor = startsAt && endsAt && endsAt <= startsAt ? '#F87171' : C.navy)}
+                onBlur={e => (e.target.style.borderColor = startsAt && endsAt && endsAt <= startsAt ? '#FCA5A5' : C.line)}
               />
             </Field>
           </div>
@@ -363,7 +373,17 @@ export default function CreateShiftPage() {
           )}
         </div>
 
-        {mutation.isError && (() => {
+        {(clientError || mutation.isError) && (() => {
+          if (clientError) {
+            return (
+              <div style={{
+                background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '11px 14px',
+                fontFamily: '"DM Sans", system-ui', fontSize: 13, color: '#991B1B', marginTop: 16,
+              }}>
+                {clientError}
+              </div>
+            )
+          }
           const err = mutation.error as any
           const details: { field: string; message: string }[] = err?.details ?? []
           return (

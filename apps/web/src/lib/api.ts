@@ -58,6 +58,7 @@ async function request<T>(
         throw Object.assign(new Error(err?.error?.message ?? 'Erro na requisição'), {
           status: retry.status,
           code: err?.error?.code,
+          details: err?.error?.details,
         })
       }
       return retry.json().then((r) => r.data ?? r)
