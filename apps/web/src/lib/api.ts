@@ -73,6 +73,7 @@ async function request<T>(
     throw Object.assign(new Error(err?.error?.message ?? 'Erro na requisição'), {
       status: res.status,
       code: err?.error?.code,
+      details: err?.error?.details ?? [],
     })
   }
 

@@ -1,14 +1,34 @@
 import { Specialty, PixKeyType } from '@prisma/client'
 import { prisma } from '../../lib/prisma'
+import { redis } from '../../lib/redis'
+
+const WORKER_CACHE_TTL = 300 // 5 minutos
+
+function workerCacheKey(userId: string) {
+  return `worker:user:${userId}`
+}
 
 export async function findWorkerByUserId(userId: string) {
-  return prisma.worker.findFirst({
+  const cached = await redis.get(workerCacheKey(userId))
+  if (cached) return JSON.parse(cached)
+
+  const worker = await prisma.worker.findFirst({
     where: { user_id: userId, user: { deleted_at: null } },
     include: {
       user: { select: { id: true, full_name: true, phone: true, photo_url: true, is_verified: true } },
       specialties: { select: { specialty: true } },
     },
   })
+
+  if (worker) {
+    await redis.set(workerCacheKey(userId), JSON.stringify(worker), 'EX', WORKER_CACHE_TTL)
+  }
+
+  return worker
+}
+
+export async function invalidateWorkerCache(userId: string) {
+  await redis.del(workerCacheKey(userId))
 }
 
 export async function findWorkerById(workerId: string) {
@@ -28,7 +48,7 @@ export async function updateWorkerProfile(
 ) {
   const { full_name, cpf, ...workerData } = data
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     if (full_name !== undefined || cpf !== undefined) {
       await tx.user.update({
         where: { id: userId },
@@ -44,20 +64,28 @@ export async function updateWorkerProfile(
       },
     })
   })
+
+  await invalidateWorkerCache(userId)
+  return result
 }
 
-export async function updateWorkerSpecialties(workerId: string, specialties: Specialty[]) {
-  return prisma.$transaction(async (tx) => {
+export async function updateWorkerSpecialties(workerId: string, userId: string, specialties: Specialty[]) {
+  await prisma.$transaction(async (tx) => {
     await tx.workerSpecialty.deleteMany({ where: { worker_id: workerId } })
     await tx.workerSpecialty.createMany({
       data: specialties.map((specialty) => ({ worker_id: workerId, specialty })),
     })
   })
+
+  await invalidateWorkerCache(userId)
 }
 
 export async function updateWorkerPhotoUrl(userId: string, photoUrl: string) {
-  return prisma.user.update({
+  const result = await prisma.user.update({
     where: { id: userId },
     data: { photo_url: photoUrl },
   })
+
+  await invalidateWorkerCache(userId)
+  return result
 }

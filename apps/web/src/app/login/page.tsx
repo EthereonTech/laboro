@@ -54,6 +54,63 @@ function InputField({ label, type, value, onChange, placeholder }: {
   )
 }
 
+function PasswordField({ label, value, onChange, placeholder }: {
+  label: string; value: string
+  onChange: (v: string) => void; placeholder: string
+}) {
+  const [visible, setVisible] = useState(false)
+
+  // eye-open / eye-closed paths
+  const eyeOpen  = 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'
+  const eyeClosed = 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22'
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{
+        fontFamily: '"DM Sans", system-ui', fontSize: 12, fontWeight: 700,
+        color: C.textSoft, letterSpacing: 0.5, textTransform: 'uppercase',
+        display: 'block', marginBottom: 6,
+      }}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          style={{
+            width: '100%', appearance: 'none', outline: 0,
+            border: `1.5px solid ${C.line}`, borderRadius: 14,
+            padding: '13px 48px 13px 16px',
+            fontFamily: '"DM Sans", system-ui', fontSize: 15, fontWeight: 500, color: C.text,
+            background: '#fff', transition: 'border-color 120ms', boxSizing: 'border-box',
+          }}
+          onFocus={e => (e.target.style.borderColor = C.navy)}
+          onBlur={e => (e.target.style.borderColor = C.line)}
+        />
+        <button
+          type="button"
+          onClick={() => setVisible(v => !v)}
+          tabIndex={-1}
+          style={{
+            position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+            appearance: 'none', border: 0, background: 'transparent', cursor: 'pointer',
+            padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: visible ? C.navy : C.textSoft,
+            transition: 'color 120ms',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = C.navy }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = visible ? C.navy : C.textSoft }}
+          aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
+        >
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+            <path d={visible ? eyeOpen : eyeClosed} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const { login, register } = useAuthStore()
@@ -225,7 +282,7 @@ export default function LoginPage() {
               <InputField label="Nome completo" type="text" value={name} onChange={setName} placeholder="Seu nome" />
             )}
             <InputField label="E-mail" type="email" value={email} onChange={setEmail} placeholder="seu@email.com" />
-            <InputField label="Senha" type="password" value={password} onChange={setPassword} placeholder="••••••••" />
+            <PasswordField label="Senha" value={password} onChange={setPassword} placeholder="••••••••" />
 
             {error && (
               <p style={{ fontFamily: '"DM Sans", system-ui', fontSize: 13, color: '#C2511A', marginBottom: 12, marginTop: -4 }}>

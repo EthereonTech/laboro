@@ -7,7 +7,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=apps/api",
+    "dev": "node scripts/dev.mjs",
+    "dev:all": "node scripts/dev.mjs --all",
+    "dev:deps": "node scripts/dev.mjs --deps-only",
+    "db:generate": "npm run db:generate --workspace=apps/api",
+    "dev:api": "npm run dev --workspace=apps/api",
     "dev:web": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspace=apps/api",
     "build:web": "npm run build --workspace=apps/web",
@@ -18,7 +22,9 @@
     "node": ">=20.0.0"
   },
   "overrides": {
-    "@types/react": "~19.0.0",
-    "@types/react-dom": "~19.0.0"
+    "@types/react": "19.0.14",
+    "@types/react-dom": "19.0.6",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
   }
 }

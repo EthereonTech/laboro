@@ -62,6 +62,8 @@ async function build() {
   await app.register(notificationsRoutes)
   await app.register(adminRoutes)
 
+  app.get('/', async (_req, reply) => reply.redirect('/docs'))
+
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))
 
   return app

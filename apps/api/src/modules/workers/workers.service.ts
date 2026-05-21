@@ -37,7 +37,7 @@ export async function updateProfile(
   const updated = await updateWorkerProfile(worker.id, userId, profileData)
 
   if (specialties !== undefined) {
-    await updateWorkerSpecialties(worker.id, specialties)
+    await updateWorkerSpecialties(worker.id, userId, specialties)
   }
 
   return toProfile({
@@ -152,7 +152,7 @@ export async function getMyPayments(userId: string) {
 export async function updateSpecialties(userId: string, specialties: Specialty[]) {
   const worker = await findWorkerByUserId(userId)
   if (!worker) throw appError('WORKER_NOT_FOUND', 'Perfil de trabalhador não encontrado')
-  await updateWorkerSpecialties(worker.id, specialties)
+  await updateWorkerSpecialties(worker.id, userId, specialties)
   return { specialties }
 }
 
@@ -161,12 +161,12 @@ export async function createAsaasCustomerForWorker(workerId: string): Promise<vo
     where: { id: workerId },
     include: { user: { select: { full_name: true, phone: true, cpf: true } } },
   })
-  if (!worker || !worker.user.cpf) return // CPF obrigatório para Asaas
+  if (!worker || !worker.user.cpf) return
 
   const customer = await asaas.createCustomer({
     name: worker.user.full_name,
     cpfCnpj: worker.user.cpf,
-    mobilePhone: worker.user.phone,
+    mobilePhone: worker.user.phone ?? undefined,
   })
   await prisma.worker.update({
     where: { id: workerId },
