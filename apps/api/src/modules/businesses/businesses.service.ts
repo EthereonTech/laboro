@@ -223,16 +223,26 @@ function validateCnpjDigits(cnpj: string) {
 }
 
 async function validateCnpjWithReceita(cnpj: string) {
-  // Em desenvolvimento local, pular consulta à Receita Federal
   if (process.env.NODE_ENV === 'development') {
     console.info(`[DEV] Pulando consulta Receita Federal para CNPJ ${cnpj}`)
     return
   }
 
   try {
-    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+
     if (res.status === 404) throw appError('CNPJ_NOT_FOUND', 'CNPJ não encontrado na Receita Federal')
-    if (!res.ok) throw appError('CNPJ_LOOKUP_FAILED', 'Falha ao consultar Receita Federal. Tente novamente.')
+
+    if (!res.ok) {
+      // BrasilAPI fora do ar ou rate limit — não bloquear cadastro
+      console.warn(`[CNPJ] BrasilAPI retornou status ${res.status} para CNPJ ${cnpj}`)
+      return
+    }
 
     const data = (await res.json()) as { situacao_cadastral?: string; descricao_situacao_cadastral?: string }
     if (data.situacao_cadastral !== '02') {
@@ -242,8 +252,9 @@ async function validateCnpjWithReceita(cnpj: string) {
       )
     }
   } catch (err: any) {
-    if (err.appCode) throw err
-    // Falha de rede — logar mas não bloquear cadastro
+    // Só bloquear cadastro para erros de negócio conhecidos
+    if (err.appCode === 'CNPJ_NOT_FOUND' || err.appCode === 'CNPJ_INACTIVE') throw err
+    // Falha de rede, timeout ou API fora do ar — logar e deixar prosseguir
     console.warn(`[CNPJ] Consulta Receita Federal falhou: ${err.message}`)
   }
 }
