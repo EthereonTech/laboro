@@ -1,5 +1,7 @@
 'use client'
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { formatCurrency, specialtyLabel, formatDateTime } from '@/lib/format'
@@ -35,17 +37,36 @@ const SHIFT_STATUS: Record<string, { bg: string; fg: string; dot: string; label:
 }
 
 export default function BusinessDashboardPage() {
+  const router = useRouter()
+
   const { data, isLoading } = useQuery({
     queryKey: ['business-dashboard'],
     queryFn: () => api.get<Dashboard>('/businesses/me/dashboard'),
+    retry: false,
   })
-  const { data: businessProfile } = useQuery({
+  const { data: businessProfile, error: profileError } = useQuery({
     queryKey: ['business-profile'],
     queryFn: () => api.get<any>('/businesses/me'),
+    retry: false,
   })
 
-  const tradeName = businessProfile?.data?.trade_name ?? 'Empresa'
+  useEffect(() => {
+    if (profileError) {
+      router.replace('/business/profile?setup=1')
+    }
+  }, [profileError, router])
+
+  const tradeName = (businessProfile as any)?.trade_name ?? 'Empresa'
   const firstLetter = tradeName[0] ?? 'E'
+
+  if (profileError) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: C.surface2 }}>
+        <div style={{ width: 32, height: 32, borderRadius: '50%', border: `3px solid ${C.jade}`, borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
 
   return (
     <div style={{ background: C.surface2, minHeight: '100vh' }}>

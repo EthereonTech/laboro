@@ -16,13 +16,19 @@ type AuthState = {
   logout: () => Promise<void>
 }
 
+function readSessionFromStorage(): { user: AuthUser | null; isLoading: boolean } {
+  if (typeof window === 'undefined') return { user: null, isLoading: true }
+  const payload = getTokenPayload()
+  if (!payload) return { user: null, isLoading: false }
+  return { user: { id: payload.sub, type: payload.type }, isLoading: false }
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  isLoading: true,
+  ...readSessionFromStorage(),
 
   loadSession: () => {
     const payload = getTokenPayload()
-    if (!payload) { set({ isLoading: false }); return }
+    if (!payload) { set({ user: null, isLoading: false }); return }
     set({ user: { id: payload.sub, type: payload.type }, isLoading: false })
   },
 

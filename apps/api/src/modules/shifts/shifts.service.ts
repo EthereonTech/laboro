@@ -68,28 +68,30 @@ export async function createShiftByBusiness(
     is_urgent: data.is_urgent,
   })
 
-  // Agendar alerta de vaga sem candidatos 4h antes do início
-  const alertDelay = starts_at.getTime() - Date.now() - 4 * 3600 * 1000
-  if (alertDelay > 0) {
-    await shiftQueue.add(
-      'no-candidates-alert',
-      { shiftId: shift.id, businessId: business.id },
-      { delay: alertDelay, jobId: `no-candidates-${shift.id}` },
+  // Agendar alerta e notificação (non-fatal: Redis pode não estar disponível)
+  try {
+    const alertDelay = starts_at.getTime() - Date.now() - 4 * 3600 * 1000
+    if (alertDelay > 0) {
+      await shiftQueue.add(
+        'no-candidates-alert',
+        { shiftId: shift.id, businessId: business.id },
+        { delay: alertDelay, jobId: `no-candidates-${shift.id}` },
+      )
+    }
+    await notificationsQueue.add(
+      'new-shift',
+      {
+        specialty: data.specialty,
+        shiftId: shift.id,
+        tradeName: business.trade_name,
+        startsAt: starts_at.toISOString(),
+        ratePerHour: data.rate_per_hour,
+      },
+      { jobId: `new-shift-notify-${shift.id}` },
     )
+  } catch (err: any) {
+    console.warn('[Queue] Failed to schedule shift jobs:', err.message)
   }
-
-  // Notificar trabalhadores com a especialidade sobre nova vaga
-  await notificationsQueue.add(
-    'new-shift',
-    {
-      specialty: data.specialty,
-      shiftId: shift.id,
-      tradeName: business.trade_name,
-      startsAt: starts_at.toISOString(),
-      ratePerHour: data.rate_per_hour,
-    },
-    { jobId: `new-shift-notify-${shift.id}` },
-  )
 
   return toSummary(shift)
 }
@@ -271,22 +273,26 @@ export async function confirmWorker(userId: string, shiftId: string, workerId: s
     }
   }
 
-  // Notificar trabalhador que foi confirmado e agendar lembrete
-  const workerUser = await prisma.worker.findFirst({
-    where: { id: workerId },
-    include: { user: { select: { id: true } } },
-  })
-  if (workerUser) {
-    await notificationsQueue.add(
-      'shift-confirmed',
-      {
-        workerId: workerUser.user.id,
-        shiftId,
-        startsAt: shift.starts_at.toISOString(),
-        tradeName: shift.business.trade_name,
-      },
-      { jobId: `shift-confirmed-${shiftId}-${workerId}` },
-    )
+  // Notificar trabalhador que foi confirmado (non-fatal)
+  try {
+    const workerUser = await prisma.worker.findFirst({
+      where: { id: workerId },
+      include: { user: { select: { id: true } } },
+    })
+    if (workerUser) {
+      await notificationsQueue.add(
+        'shift-confirmed',
+        {
+          workerId: workerUser.user.id,
+          shiftId,
+          startsAt: shift.starts_at.toISOString(),
+          tradeName: shift.business.trade_name,
+        },
+        { jobId: `shift-confirmed-${shiftId}-${workerId}` },
+      )
+    }
+  } catch (err: any) {
+    console.warn('[Queue] Failed to schedule shift-confirmed notification:', err.message)
   }
 
   return { confirmed: true, shift_id: shiftId, worker_id: workerId, pix_qr_code }
