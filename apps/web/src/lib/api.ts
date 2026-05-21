@@ -36,7 +36,7 @@ async function request<T>(
   const { skipAuth, ...fetchOptions } = options
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(fetchOptions.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     ...(fetchOptions.headers as Record<string, string>),
   }
 
