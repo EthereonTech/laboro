@@ -393,7 +393,7 @@ function AppCard({ app, onViewProfile }: { app: Application; onViewProfile: () =
     <div
       onClick={onViewProfile}
       style={{
-        background: '#fff', borderRadius: 16, padding: '16px 18px',
+        background: '#fff', borderRadius: 16, padding: '18px 20px',
         border: `1px solid ${C.line}`,
         boxShadow: '0 2px 4px rgba(14,42,120,0.02), 0 6px 16px rgba(14,42,120,0.04)',
         cursor: 'pointer', transition: 'border-color 120ms, box-shadow 120ms',
@@ -409,7 +409,7 @@ function AppCard({ app, onViewProfile }: { app: Application; onViewProfile: () =
         el.style.boxShadow = '0 2px 4px rgba(14,42,120,0.02), 0 6px 16px rgba(14,42,120,0.04)'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         {/* avatar */}
         <div style={{
           width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
@@ -423,10 +423,10 @@ function AppCard({ app, onViewProfile }: { app: Application; onViewProfile: () =
 
         {/* info */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{
               fontFamily: '"Bricolage Grotesque", system-ui',
-              fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: -0.3,
+              fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: -0.3, lineHeight: 1.3,
             }}>
               {app.worker.user.full_name}
             </span>
